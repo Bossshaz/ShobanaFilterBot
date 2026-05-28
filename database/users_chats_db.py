@@ -2,6 +2,8 @@
 #  @MrMNTG @MusammilN
 #please give credits https://github.com/MN-BOTS/ShobanaFilterBot
 import asyncio
+from datetime import datetime
+
 import motor.motor_asyncio
 from sqlalchemy import text
 
@@ -40,6 +42,8 @@ class Database:
             self.col = self.db.users
             self.grp = self.db.groups
             self.config = self.db.config
+            self.invite_links = self.db.invite_links
+            self.join_users = self.db.join_users
 
             # Optional media shards can use additional DBs; /stats should include
             # size usage across configured Mongo databases.
@@ -71,6 +75,9 @@ class Database:
             self.col.create_index('ban_status.is_banned'),
             self.grp.create_index('id'),
             self.grp.create_index('chat_status.is_disabled'),
+            self.invite_links.create_index([('chat_id', 1), ('purpose', 1)], unique=True),
+            self.join_users.create_index('user_id'),
+            self.join_users.create_index([('user_id', 1), ('chat_id', 1)], unique=True),
             return_exceptions=True,
         )
 
@@ -254,6 +261,96 @@ class Database:
                 return {"id": row[0], "title": row[1]}
 
         return AsyncRows()
+
+
+    async def save_invite_link(self, chat_id: int, purpose: str, invite_link: str):
+        data = {
+            "chat_id": int(chat_id),
+            "purpose": str(purpose),
+            "invite_link": invite_link,
+            "updated_at": datetime.utcnow(),
+        }
+        if self.use_mongo:
+            await self.invite_links.update_one(
+                {"chat_id": int(chat_id), "purpose": str(purpose)},
+                {"$set": data},
+                upsert=True,
+            )
+            return
+        with store.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO invite_links(chat_id, purpose, invite_link, updated_at)
+                    VALUES (:chat_id, :purpose, :invite_link, CURRENT_TIMESTAMP)
+                    ON CONFLICT (chat_id, purpose)
+                    DO UPDATE SET invite_link=:invite_link, updated_at=CURRENT_TIMESTAMP
+                    """
+                ),
+                {"chat_id": int(chat_id), "purpose": str(purpose), "invite_link": invite_link},
+            )
+
+    async def get_invite_link(self, chat_id: int, purpose: str):
+        if self.use_mongo:
+            doc = await self.invite_links.find_one(
+                {"chat_id": int(chat_id), "purpose": str(purpose)},
+                {"_id": 0, "invite_link": 1},
+            )
+            return doc.get("invite_link") if doc else None
+        with store.begin() as conn:
+            row = conn.execute(
+                text("SELECT invite_link FROM invite_links WHERE chat_id=:chat_id AND purpose=:purpose"),
+                {"chat_id": int(chat_id), "purpose": str(purpose)},
+            ).first()
+            return row[0] if row else None
+
+    async def add_join_user(self, user_id: int, chat_id: int, name: str = ""):
+        data = {
+            "user_id": int(user_id),
+            "chat_id": int(chat_id),
+            "name": name or "",
+            "updated_at": datetime.utcnow(),
+        }
+        if self.use_mongo:
+            await self.join_users.update_one(
+                {"user_id": int(user_id), "chat_id": int(chat_id)},
+                {"$set": data},
+                upsert=True,
+            )
+            return
+        with store.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO join_users(user_id, chat_id, name, updated_at)
+                    VALUES (:user_id, :chat_id, :name, CURRENT_TIMESTAMP)
+                    ON CONFLICT (user_id, chat_id)
+                    DO UPDATE SET name=:name, updated_at=CURRENT_TIMESTAMP
+                    """
+                ),
+                {"user_id": int(user_id), "chat_id": int(chat_id), "name": name or ""},
+            )
+
+    async def get_join_user_channels(self, user_id: int) -> set[int]:
+        if self.use_mongo:
+            docs = await self.join_users.find(
+                {"user_id": int(user_id)},
+                {"_id": 0, "chat_id": 1},
+            ).to_list(length=None)
+            return {int(doc["chat_id"]) for doc in docs if "chat_id" in doc}
+        with store.begin() as conn:
+            rows = conn.execute(
+                text("SELECT chat_id FROM join_users WHERE user_id=:user_id"),
+                {"user_id": int(user_id)},
+            ).fetchall()
+            return {int(row[0]) for row in rows}
+
+    async def clear_join_users(self):
+        if self.use_mongo:
+            await self.join_users.drop()
+            return
+        with store.begin() as conn:
+            conn.execute(text("DELETE FROM join_users"))
 
     async def set_auth_channels(self, channels: list[int]):
         if self.use_mongo:
