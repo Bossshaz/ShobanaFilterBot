@@ -11,7 +11,7 @@ from typing import Union
 import re
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from database.users_chats_db import db
 from bs4 import BeautifulSoup
 import requests
@@ -59,7 +59,13 @@ async def is_subscribed(user_id: int, client) -> bool:
     if not auth_channels:
         return True  # No channels to check
 
-    requested_channels = JOIN_REQUEST_USERS.get(user_id, set()) if REQUEST_FSUB_MODE else set()
+    requested_channels = set()
+    if REQUEST_FSUB_MODE:
+        requested_channels = set(JOIN_REQUEST_USERS.get(user_id, set()))
+        try:
+            requested_channels.update(await db.get_join_user_channels(user_id))
+        except Exception as e:
+            logger.warning("Unable to load join request users from database: %s", e)
 
     for channel in auth_channels:
         is_member = False
@@ -86,19 +92,56 @@ async def is_subscribed(user_id: int, client) -> bool:
 
     return True
 
+async def get_or_create_invite_link(client, channel: int, purpose: str, **kwargs) -> Optional[str]:
+    cached_link = await db.get_invite_link(channel, purpose)
+    if cached_link:
+        return cached_link
+
+    try:
+        invite = await client.create_chat_invite_link(
+            channel,
+            name=kwargs.pop("name", "BotAccess"),
+            **kwargs,
+        )
+    except Exception as e:
+        logger.warning("Unable to create invite link for %s: %s", channel, e)
+        return None
+
+    await db.save_invite_link(channel, purpose, invite.invite_link)
+    return invite.invite_link
+
+
+async def get_chat_join_link(
+    client,
+    channel: int,
+    purpose: str = "fsub",
+    creates_join_request: Optional[bool] = None,
+) -> Optional[str]:
+    try:
+        chat = await client.get_chat(int(channel))
+        if chat.username:
+            return f"https://t.me/{chat.username}"
+    except Exception:
+        pass
+
+    join_request_mode = REQUEST_FSUB_MODE if creates_join_request is None else creates_join_request
+    purpose_key = f"{purpose}:request" if join_request_mode else f"{purpose}:direct"
+    return await get_or_create_invite_link(
+        client,
+        int(channel),
+        purpose_key,
+        creates_join_request=join_request_mode,
+        name="BotAuthAccess",
+    )
+
+
 async def create_invite_links(client) -> dict:
     links = {}
     auth_channels = await db.get_auth_channels()
     for channel in auth_channels:
-        try:
-            invite = await client.create_chat_invite_link(
-                channel,
-                creates_join_request=REQUEST_FSUB_MODE,  # Only enable join requests if REQUEST_FSUB_MODE is True
-                name="BotAuthAccess"
-            )
-            links[channel] = invite.invite_link
-        except Exception:
-            continue
+        link = await get_chat_join_link(client, int(channel), purpose="fsub")
+        if link:
+            links[channel] = link
     return links
 
 #  @MrMNTG @MusammilN

@@ -9,7 +9,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from database.ia_filterdb import Media, get_file_details, unpack_new_file_id
 from database.users_chats_db import db
 from info import CHANNELS, ADMINS, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, FILE_CHANNELS, FILE_CHANNEL_SENDING_MODE, FILE_AUTO_DELETE_SECONDS
-from utils import get_settings, get_size, is_subscribed, save_group_settings, temp, create_invite_links
+from utils import get_settings, get_size, is_subscribed, save_group_settings, temp, create_invite_links, get_chat_join_link
 from database.connections_mdb import active_connection
 from plugins.pm_filter import auto_filter
 import re
@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 BATCH_FILES = {}
 
 # Add these imports at the top of your file
-from datetime import datetime, timedelta
 import random
 
 AUTO_DELETE_SECONDS = 15  
@@ -43,14 +42,10 @@ async def create_file_buttons(client, sent_message):
         if chat.username:
             invite_link = f"https://t.me/{chat.username}"
         else:
-            invite_link = (await client.create_chat_invite_link(
-                sent_message.chat.id,
-                name=f"FileAccess-{datetime.now().timestamp()}",
-                expire_date=datetime.now() + timedelta(minutes=10),
-                member_limit=1
-            )).invite_link
-        
-        buttons.append([InlineKeyboardButton("📢 Join Channel", url=invite_link)])
+            invite_link = await get_chat_join_link(client, sent_message.chat.id, purpose="file_channel", creates_join_request=False)
+
+        if invite_link:
+            buttons.append([InlineKeyboardButton("📢 Join Channel", url=invite_link)])
         buttons.append([InlineKeyboardButton("🔗 View File", url=message_link)])
     except Exception as e:
         logger.error(f"Error creating invite: {e}")
@@ -429,11 +424,9 @@ async def build_fsub_details_text(client) -> str:
         try:
             chat = await client.get_chat(int(cid))
             title = chat.title or chat.first_name or "Unknown"
-            if chat.username:
-                link = f"https://t.me/{chat.username}"
-            else:
-                invite = await client.create_chat_invite_link(int(cid), member_limit=1)
-                link = invite.invite_link
+            link = await get_chat_join_link(client, int(cid), purpose="fsub")
+            if not link:
+                link = "unavailable"
             lines.append(f"\n• <b>{title}</b>\nID: <code>{cid}</code>\nLink: {link}")
         except Exception:
             lines.append(f"\n• ID: <code>{cid}</code>\nLink: unavailable")
