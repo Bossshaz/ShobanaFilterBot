@@ -12,7 +12,7 @@ from database.connections_mdb import active_connection, all_connections, delete_
 from info import (
     ADMINS, AUTH_USERS, CUSTOM_FILE_CAPTION, AUTH_GROUPS, P_TTI_SHOW_OFF, IMDB,
     SINGLE_BUTTON, SPELL_CHECK_REPLY, IMDB_TEMPLATE, DATABASE_URI, DATABASE_URI2, DATABASE_URI3, DATABASE_URI4, DATABASE_URI5,
-    POSTGRES_STORAGE_LIMIT_BYTES,
+    POSTGRES_STORAGE_LIMIT_BYTES, DELETE_USER_SEARCH_MESSAGE, PM_SEARCH_GROUP_LINK, PM_SEARCH_REDIRECT_TEXT,
 )
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram import Client, filters, enums
@@ -41,16 +41,41 @@ def _format_search_time(seconds):
     return f"⏱ Results fetched in: {seconds:.2f}s"
 
 
-@Client.on_message(filters.group | filters.private & filters.text & filters.incoming) 
-async def give_filter(client, message):
+async def _delete_user_search_message(message):
+    if not DELETE_USER_SEARCH_MESSAGE:
+        return
     try:
         await message.delete()
     except Exception:
-        logger.exception("Failed to delete message")
+        logger.exception("Failed to delete user search message")
+
+
+async def _send_pm_search_redirect(message):
+    text = PM_SEARCH_REDIRECT_TEXT.format(group_link=PM_SEARCH_GROUP_LINK)
+    buttons = InlineKeyboardMarkup([[
+        InlineKeyboardButton("👇 Join / Open Group", url=PM_SEARCH_GROUP_LINK)
+    ]])
+    await message.reply_text(
+        text=text,
+        reply_markup=buttons,
+        disable_web_page_preview=True,
+    )
+
+
+@Client.on_message((filters.group | filters.private) & filters.text & filters.incoming)
+async def give_filter(client, message):
+    if message.text and message.text.startswith("/"):
+        return
+
+    if message.chat.type == enums.ChatType.PRIVATE:
+        await _send_pm_search_redirect(message)
+        await _delete_user_search_message(message)
+        return
 
     k = await manual_filters(client, message)
     if k == False:
         await auto_filter(client, message)
+    await _delete_user_search_message(message)
 
 @Client.on_callback_query(filters.regex(r"^next"))
 async def next_page(bot, query):
