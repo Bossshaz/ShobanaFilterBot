@@ -127,15 +127,38 @@ async def _deliver(message, chat_id: int):
 # ── DB iterators ──────────────────────────────────────────────────────────────
 
 async def _iter_mongo_ids(collection):
-    cursor = collection.find({}, {"_id": 0, "id": 1}).batch_size(1000)
-    try:
-        async for item in cursor:
+    """
+    Cursor-free paginator for MongoDB Atlas.
+
+    Atlas kills idle cursors after ~10 minutes (CursorNotFound / code 43).
+    With 1M users and parallel workers the cursor sits idle between batches
+    long enough to be reaped.  Instead we issue a fresh find() per page,
+    keying off the last seen `_id` (ObjectId sort order is guaranteed stable).
+    Each query is independent — no cursor kept alive between pages.
+    """
+    BATCH = 500          # documents per page  (keep small → short round-trips)
+    last_oid = None      # tracks pagination position
+
+    while True:
+        filt = {"_id": {"$gt": last_oid}} if last_oid is not None else {}
+        # Fresh query every iteration — no long-lived cursor
+        docs = await collection.find(
+            filt, {"_id": 1, "id": 1}
+        ).sort("_id", 1).limit(BATCH).to_list(length=BATCH)
+
+        if not docs:
+            break
+
+        for item in docs:
             try:
                 yield int(item["id"])
             except (KeyError, TypeError, ValueError):
                 continue
-    finally:
-        await cursor.close()
+
+        last_oid = docs[-1]["_id"]   # advance pagination cursor (local, not server-side)
+
+        # Yield control so workers can drain the queue between pages
+        await asyncio.sleep(0)
 
 
 async def _iter_sql_ids(table: str):
