@@ -6,7 +6,7 @@ from database.users_chats_db import db
 from info import ADMINS
 from utils import broadcast_messages
 
-MAX_CONCURRENT = 60
+MAX_CONCURRENT = 20
 CHUNK_SIZE = 100
 
 # Central store — one entry per active broadcast
