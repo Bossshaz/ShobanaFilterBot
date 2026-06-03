@@ -95,6 +95,8 @@ DELETE_USER_SEARCH_MESSAGE = is_enabled(environ.get('DELETE_USER_SEARCH_MESSAGE'
 
 # Broadcast settings
 BROADCAST_AS_FORWARD = is_enabled(environ.get('BROADCAST_AS_FORWARD', 'True'), True)
+BROADCAST_STATUS_UPDATE_SECONDS = int(environ.get('BROADCAST_STATUS_UPDATE_SECONDS', 300))
+BROADCAST_SLEEP_SECONDS = float(environ.get('BROADCAST_SLEEP_SECONDS', 0.2))
 
 # Others
 LOG_CHANNEL = int(environ.get('LOG_CHANNEL', '-1002345447637'))

@@ -242,6 +242,13 @@ class Database:
         with store.begin() as conn:
             return int(conn.execute(text("SELECT COUNT(*) FROM groups_data")).scalar() or 0)
 
+    async def delete_chat(self, chat_id):
+        if self.use_mongo:
+            await self.grp.delete_many({'id': int(chat_id)})
+            return
+        with store.begin() as conn:
+            conn.execute(text("DELETE FROM groups_data WHERE id=:id"), {"id": int(chat_id)})
+
     async def get_all_chats(self):
         if self.use_mongo:
             return self.grp.find({})

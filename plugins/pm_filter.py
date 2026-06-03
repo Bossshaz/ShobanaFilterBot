@@ -37,10 +37,6 @@ MONGO_DB_COUNT = len([u for u in (DATABASE_URI, DATABASE_URI2, DATABASE_URI3, DA
 SPELL_CHECK = {}
 
 
-def _format_search_time(seconds):
-    return f"⏱ Results fetched in: {seconds:.2f}s"
-
-
 async def _delete_user_search_message(message):
     if not DELETE_USER_SEARCH_MESSAGE:
         return
@@ -112,7 +108,6 @@ async def next_page(bot, query):
             file_link = f"https://t.me/{temp.U_NAME}?start=file_{file.file_id}"
             cap_lines.append(f"📁 {get_size(file.file_size)} - [{file.file_name}]({file_link})")
         cap_text = "\n".join(cap_lines)
-        cap_text = f"{cap_text}\n\n{_format_search_time(search_time)}"
         btn = []
     else:
         if settings['button']:
@@ -182,7 +177,7 @@ async def next_page(bot, query):
     except MessageNotModified:
         pass
 
-    await query.answer(_format_search_time(search_time))
+    await query.answer()
 
 @Client.on_callback_query(filters.regex(r"^spol")) 
 async def advantage_spoll_choker(bot, query):
@@ -785,7 +780,6 @@ async def auto_filter(client, msg, spoll=False):
             file_link = f"https://t.me/{temp.U_NAME}?start={pre}_{file.file_id}"
             cap_lines.append(f"📁 {get_size(file.file_size)} - [{file.file_name}]({file_link})")
         cap_text = "\n".join(cap_lines)
-        cap_text = f"{cap_text}\n\n{_format_search_time(search_time)}"
 
         btn = []
         if offset != "":
@@ -870,8 +864,6 @@ async def auto_filter(client, msg, spoll=False):
     else:
         mention = message.from_user.mention if message.from_user else "User"
         cap = script.RESULT_TXT.format(mention=mention, query=search)
-
-    cap = f"{cap}\n\n{_format_search_time(search_time)}"
 
     if imdb and imdb.get('poster'):
         try:
