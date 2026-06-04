@@ -14,5 +14,6 @@ async def join_request_handler(client, update: ChatJoinRequest):
         if user_id not in JOIN_REQUEST_USERS:
             JOIN_REQUEST_USERS[user_id] = set()
         JOIN_REQUEST_USERS[user_id].add(chat_id)
+        await db.add_join_user(user_id, chat_id, update.from_user.first_name or "")
 
 #  @MrMNTG @MusammilN

@@ -82,6 +82,18 @@ FILE_CHANNELS = [int(ch) for ch in environ.get('FILE_CHANNELS', '-1002831639976 
 FILE_CHANNEL_SENDING_MODE = is_enabled(environ.get('FILE_CHANNEL_SENDING_MODE', 'True'), False)
 FILE_AUTO_DELETE_SECONDS = int(environ.get('FILE_AUTO_DELETE_SECONDS', 60))  # Default: 1 minute
 
+
+# Private search guidance
+PM_SEARCH_GROUP_LINK = environ.get('PM_SEARCH_GROUP_LINK', 'https://t.me/MnMoviesLinks/4')
+PM_SEARCH_REDIRECT_TEXT = environ.get(
+    'PM_SEARCH_REDIRECT_TEXT',
+    'Please ask/search movies in our groups.\n'
+    'സിനിമ / സീരീസ് തിരയാൻ ഞങ്ങളുടെ ഗ്രൂപ്പിൽ മെസേജ് അയക്കുക.\n\n'
+    '👇 Join / Open Group\n{group_link}'
+)
+DELETE_USER_SEARCH_MESSAGE = is_enabled(environ.get('DELETE_USER_SEARCH_MESSAGE', 'False'), False)
+
+
 # Others
 LOG_CHANNEL = int(environ.get('LOG_CHANNEL', '-1002345447637'))
 SUPPORT_CHAT = environ.get('SUPPORT_CHAT', 'mnbots_support')
@@ -101,6 +113,9 @@ PROTECT_CONTENT = is_enabled((environ.get('PROTECT_CONTENT', "False")), False)
 PUBLIC_FILE_STORE = is_enabled((environ.get('PUBLIC_FILE_STORE', "False")), True)
 
 LOG_STR = "Current Cusomized Configurations are:-\n"
+LOG_STR += ("Private movie search messages in PM will be redirected to the configured group link.\n")
+LOG_STR += ("User search messages will be deleted after handling.\n" if DELETE_USER_SEARCH_MESSAGE else "User search messages will be kept after handling.\n")
+LOG_STR += ("Broadcasts will be forwarded by default.\n" if BROADCAST_AS_FORWARD else "Broadcasts will be copied by default.\n")
 LOG_STR += ("IMDB Results are enabled, Bot will be showing imdb details for you queries.\n" if IMDB else "IMBD Results are disabled.\n")
 LOG_STR += ("P_TTI_SHOW_OFF found , Users will be redirected to send /start to Bot PM instead of sending file file directly\n" if P_TTI_SHOW_OFF else "P_TTI_SHOW_OFF is disabled files will be send in PM, instead of sending start.\n")
 LOG_STR += ("SINGLE_BUTTON is Found, filename and files size will be shown in a single button instead of two separate buttons\n" if SINGLE_BUTTON else "SINGLE_BUTTON is disabled , filename and file_sixe will be shown as different buttons\n")

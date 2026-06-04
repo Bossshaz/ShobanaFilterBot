@@ -95,6 +95,24 @@ class SQLStore:
             )
             """,
             """
+            CREATE TABLE IF NOT EXISTS invite_links (
+                chat_id BIGINT,
+                purpose TEXT,
+                invite_link TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (chat_id, purpose)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS join_users (
+                user_id BIGINT,
+                chat_id BIGINT,
+                name TEXT DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, chat_id)
+            )
+            """,
+            """
             CREATE TABLE IF NOT EXISTS media (
                 file_id TEXT PRIMARY KEY,
                 file_ref TEXT,
@@ -121,6 +139,7 @@ class SQLStore:
             "CREATE INDEX IF NOT EXISTS idx_media_file_type_created ON media (file_type, created_at DESC)",
             "CREATE INDEX IF NOT EXISTS idx_filters_group_id ON filters (group_id)",
             "CREATE INDEX IF NOT EXISTS idx_connections_user_active ON connections (user_id, is_active)",
+            "CREATE INDEX IF NOT EXISTS idx_join_users_user_id ON join_users (user_id)",
         ]
         with self.begin() as conn:
             for stmt in statements:
