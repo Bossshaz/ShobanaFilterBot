@@ -244,7 +244,8 @@ async def broadcast_messages(user_id, message):
         await message.copy(chat_id=user_id)
         return True, "Success"
     except FloodWait as e:
-        await asyncio.sleep(e.x)
+        wait_for = getattr(e, "value", None) or getattr(e, "x", 0)
+        await asyncio.sleep(int(wait_for) + 1)
         return await broadcast_messages(user_id, message)
     except InputUserDeactivated:
         await db.delete_user(int(user_id))
@@ -256,7 +257,7 @@ async def broadcast_messages(user_id, message):
     except PeerIdInvalid:
         await db.delete_user(int(user_id))
         logging.info(f"{user_id} - PeerIdInvalid")
-        return False, "Error"
+        return False, "Deleted"
     except Exception as e:
         return False, "Error"
 
