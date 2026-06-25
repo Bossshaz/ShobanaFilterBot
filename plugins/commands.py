@@ -10,6 +10,7 @@ from database.ia_filterdb import Media, get_file_details, unpack_new_file_id
 from database.users_chats_db import db
 from info import CHANNELS, ADMINS, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, FILE_CHANNELS, FILE_CHANNEL_SENDING_MODE, FILE_AUTO_DELETE_SECONDS
 from utils import get_settings, get_size, is_subscribed, save_group_settings, temp, create_invite_links, get_chat_join_link
+from plugins.stream_server import encode_file_id, build_stream_url_from_env
 from database.connections_mdb import active_connection
 from plugins.pm_filter import auto_filter
 import re
@@ -69,7 +70,25 @@ async def auto_delete_file(client, message, delay):
     except Exception as e:
         logger.error(f"Error deleting file: {e}")
 
-async def send_file_to_user(client, user_id, file_id, protect_content_flag, file_name=None, file_size=None, file_caption=None, requester_mention=None):
+def _build_stream_buttons(file_id: str) -> list:
+    """Return MX Player + VLC inline buttons if a stream URL can be built."""
+    encoded = encode_file_id(file_id)
+    base = build_stream_url_from_env(file_id)
+    if not base:
+        return []
+    # Strip the /stream/... suffix — we only need the domain
+    domain = base.rsplit("/stream/", 1)[0]
+    mx_url  = f"{domain}/play/mx/{encoded}"
+    vlc_url = f"{domain}/play/vlc/{encoded}"
+    return [[
+        InlineKeyboardButton("▶️ MX Player", url=mx_url),
+        InlineKeyboardButton("▶️ VLC Player", url=vlc_url),
+    ]]
+
+
+async def send_file_to_user(client, user_id, file_id, protect_content_flag,
+                            file_name=None, file_size=None, file_caption=None,
+                            requester_mention=None, mime_type=None):
     try:
         # Generate proper caption
         caption = None
@@ -90,6 +109,11 @@ async def send_file_to_user(client, user_id, file_id, protect_content_flag, file
             mention_line = f"Requested by: {requester_mention}"
             caption = f"{mention_line}\n\n{caption}" if caption else mention_line
 
+        # Build MX / VLC streaming buttons for video files
+        stream_btns = []
+        if mime_type and mime_type.startswith("video/"):
+            stream_btns = _build_stream_buttons(file_id)
+
         # File sending logic with channel support
         if FILE_CHANNEL_SENDING_MODE and FILE_CHANNELS:
             channel_id = random.choice(FILE_CHANNELS)
@@ -101,10 +125,12 @@ async def send_file_to_user(client, user_id, file_id, protect_content_flag, file
             )
             # Schedule auto-delete for channel file
             asyncio.create_task(auto_delete_file(client, sent_message, FILE_AUTO_DELETE_SECONDS))
-            
-            # Create channel-specific buttons
-            reply_markup = await create_file_buttons(client, sent_message)
-            
+
+            # Build channel-specific buttons and append stream buttons below
+            channel_markup = await create_file_buttons(client, sent_message)
+            combined_rows = list(channel_markup.inline_keyboard) + stream_btns
+            reply_markup = InlineKeyboardMarkup(combined_rows)
+
             # Notify user with auto-delete
             user_msg = await client.send_message(
                 chat_id=user_id,
@@ -114,16 +140,18 @@ async def send_file_to_user(client, user_id, file_id, protect_content_flag, file
             )
             asyncio.create_task(auto_delete_message(client, user_msg, AUTO_DELETE_SECONDS))
         else:
-            # Fallback to direct send with caption
+            # Direct send — attach stream buttons if available
+            reply_markup = InlineKeyboardMarkup(stream_btns) if stream_btns else None
             await client.send_cached_media(
                 chat_id=user_id,
                 file_id=file_id,
                 caption=caption,
                 protect_content=protect_content_flag,
+                reply_markup=reply_markup,
             )
     except Exception as e:
         logger.error(f"File send error: {e}")
-        # Fallback to direct send if channel send fails
+        # Fallback to direct send without stream buttons
         await client.send_cached_media(
             chat_id=user_id,
             file_id=file_id,
@@ -155,7 +183,8 @@ async def checksub_callback(client, callback_query):
                 file_name=file_details.file_name if file_details else None,
                 file_size=get_size(file_details.file_size) if file_details else None,
                 file_caption=file_details.caption if file_details else None,
-                requester_mention=callback_query.from_user.mention if callback_query.from_user else None
+                requester_mention=callback_query.from_user.mention if callback_query.from_user else None,
+                mime_type=file_details.mime_type if file_details else None
             )
             await callback_query.message.delete()
         except Exception as e:
@@ -401,7 +430,7 @@ async def start(client, message):
     
     protect_content_flag = True if pre == 'filep' else False
     
-    # Use helper function for consistent file sending - FIXED: Removed 'caption' parameter
+    # Use helper function for consistent file sending
     await send_file_to_user(
         client=client,
         user_id=message.from_user.id,
@@ -409,7 +438,8 @@ async def start(client, message):
         protect_content_flag=protect_content_flag,
         file_name=title,
         file_size=size,
-        file_caption=f_caption
+        file_caption=f_caption,
+        mime_type=files.mime_type if files else None
     )
                     
 
