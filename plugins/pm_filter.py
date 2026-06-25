@@ -63,6 +63,9 @@ async def give_filter(client, message):
     if message.text and message.text.startswith("/"):
         return
 
+    if message.chat.type == enums.ChatType.PRIVATE and not temp.PM_SEARCH:
+        return
+
     k = await manual_filters(client, message)
     if k == False:
         await auto_filter(client, message)
