@@ -5,6 +5,7 @@ from info import ADMINS
 from database.users_chats_db import db
 import plugins.new_updates as nu
 from plugins.commands import build_fsub_details_text
+from utils import temp
 
 
 def is_admin(user) -> bool:
@@ -139,3 +140,12 @@ async def admin_num_apply(client, query):
     elif key=="sdelay": nu.set_runtime_update_config("SEND_DELAY", round(cfg["SEND_DELAY"] + (0.1*delta), 2))
     await query.answer("Updated")
     await query.message.edit_text(_updates_text(), reply_markup=_updates_markup())
+
+
+@Client.on_message(filters.command("pmmode") & filters.private)
+async def pm_mode_toggle(client, message):
+    if not is_admin(message.from_user):
+        return await message.reply("🚫 You are not authorized.")
+    temp.PM_SEARCH = not temp.PM_SEARCH
+    state = "✅ Enabled" if temp.PM_SEARCH else "❌ Disabled"
+    await message.reply(f"<b>PM Search:</b> {state}")
