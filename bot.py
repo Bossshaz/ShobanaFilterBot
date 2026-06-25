@@ -37,6 +37,7 @@ pyroutils.MIN_CHANNEL_ID = -100999999999999
 
 from plugins.webcode import bot_run
 from plugins.new_updates import run_daily_summary
+from plugins.stream_server import set_client as set_stream_client
 
 PORT_CODE = environ.get("PORT", "8080")
 
