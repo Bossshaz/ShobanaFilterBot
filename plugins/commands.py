@@ -109,10 +109,8 @@ async def send_file_to_user(client, user_id, file_id, protect_content_flag,
             mention_line = f"Requested by: {requester_mention}"
             caption = f"{mention_line}\n\n{caption}" if caption else mention_line
 
-        # Build MX / VLC streaming buttons for video files
-        stream_btns = []
-        if mime_type and mime_type.startswith("video/"):
-            stream_btns = _build_stream_buttons(file_id)
+        # Build MX / VLC streaming buttons for all files
+        stream_btns = _build_stream_buttons(file_id)
 
         # File sending logic with channel support
         if FILE_CHANNEL_SENDING_MODE and FILE_CHANNELS:
