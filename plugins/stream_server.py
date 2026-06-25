@@ -66,7 +66,12 @@ def build_stream_url_from_env(file_id: str) -> str:
         base = override
     else:
         replit = environ.get("REPLIT_DEV_DOMAIN", "")
-        base = f"https://{replit}" if replit else ""
+        if replit:
+            base = f"https://{replit}"
+        else:
+            # Fall back to KEEP_ALIVE_URL (e.g. Koyeb / Render public domain)
+            keep_alive = environ.get("KEEP_ALIVE_URL", "").rstrip("/")
+            base = keep_alive if keep_alive else ""
     if not base:
         return ""
     return f"{base}/stream/{encode_file_id(file_id)}"
