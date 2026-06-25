@@ -45,6 +45,7 @@ class temp(object):
     U_NAME = None
     B_NAME = None
     SETTINGS = {}
+    PM_SEARCH = True  # Toggle PM search on/off via /pmmode (admin only)
 
 #  @MrMNTG @MusammilN
 #please give credits https://github.com/MN-BOTS/ShobanaFilterBot
