@@ -35,6 +35,10 @@ def parse_size_to_bytes(value: str, default: int = 0) -> int:
         "p": 1024**5,
     }
     return int(number * scale.get(unit, 1))
+# Streaming server — public base URL (e.g. https://your-app.replit.app).
+# Set REPLIT_DEV_DOMAIN automatically by Replit, or override with STREAM_BASE_URL.
+STREAM_BASE_URL = environ.get('STREAM_BASE_URL', '')
+
 #Bot information
 SESSION = environ.get('SESSION', 'Media_search')
 API_ID = int(environ.get('API_ID', ''))
