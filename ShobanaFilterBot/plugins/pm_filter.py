@@ -228,6 +228,7 @@ async def quality_filter_handler(bot, query):
     btn.append([InlineKeyboardButton("⬅️ Back to Qualities", callback_data=f"qualback_{req}_{key}")])
     await query.message.edit_reply_markup(InlineKeyboardMarkup(btn))
     await query.answer()
+    raise pyrogram.StopPropagation
 
 
 @Client.on_callback_query(filters.regex(r"^qualback_"))
@@ -257,6 +258,7 @@ async def quality_back_handler(bot, query):
     btn.append([InlineKeyboardButton(text=f"🎞 {total} results — pick quality 👆", callback_data="pages")])
     await query.message.edit_reply_markup(InlineKeyboardMarkup(btn))
     await query.answer()
+    raise pyrogram.StopPropagation
 
 
 @Client.on_callback_query(filters.regex(r"^seas_"))
@@ -283,6 +285,7 @@ async def season_filter_handler(bot, query):
     btn.append([InlineKeyboardButton("⬅️ Back to Seasons", callback_data=f"seasback_{req}_{key}")])
     await query.message.edit_reply_markup(InlineKeyboardMarkup(btn))
     await query.answer()
+    raise pyrogram.StopPropagation
 
 
 @Client.on_callback_query(filters.regex(r"^seasback_"))
@@ -306,6 +309,7 @@ async def season_back_handler(bot, query):
     btn.append([InlineKeyboardButton(text=f"🎞 {total} results — pick season 👆", callback_data="pages")])
     await query.message.edit_reply_markup(InlineKeyboardMarkup(btn))
     await query.answer()
+    raise pyrogram.StopPropagation
 
 
 @Client.on_callback_query(filters.regex(r"^spol")) 
