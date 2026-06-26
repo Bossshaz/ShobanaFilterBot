@@ -11,7 +11,6 @@ from database.users_chats_db import db
 from info import CHANNELS, ADMINS, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, FILE_CHANNELS, FILE_CHANNEL_SENDING_MODE, FILE_AUTO_DELETE_SECONDS
 from utils import get_settings, get_size, is_subscribed, save_group_settings, temp, create_invite_links, get_chat_join_link
 from plugins.stream_server import encode_file_id, build_stream_url_from_env
-from plugins.discover import track_file_hit
 from database.connections_mdb import active_connection
 from plugins.pm_filter import auto_filter
 import re
@@ -110,9 +109,10 @@ async def send_file_to_user(client, user_id, file_id, protect_content_flag,
             mention_line = f"Requested by: {requester_mention}"
             caption = f"{mention_line}\n\n{caption}" if caption else mention_line
 
-        # Track for /trending
+        # Track for /trending (lazy import — keeps commands.py loading even if discover has issues)
         try:
-            track_file_hit(file_id, file_name or '', file_size or 0)
+            from plugins.discover import track_file_hit as _track
+            _track(file_id, file_name or '', file_size or 0)
         except Exception:
             pass
 
