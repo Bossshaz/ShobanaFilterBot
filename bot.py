@@ -134,6 +134,8 @@ class Bot(Client):
         asyncio.create_task(keep_alive())
         asyncio.create_task(run_daily_summary(self))
 
+        set_stream_client(self)
+
         client = webserver.AppRunner(await bot_run())
         await client.setup()
         bind_address = "0.0.0.0"

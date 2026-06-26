@@ -21,6 +21,7 @@ from utils import get_size, is_subscribed, get_poster, search_gagala, temp, get_
 from database.users_chats_db import db
 from info import HYPER_MODE
 from database.ia_filterdb import Media, get_file_details, get_search_results
+from plugins.stream_server import encode_file_id, build_stream_url_from_env
 from database.filters_mdb import (
     del_all,
     find_filter,
@@ -772,58 +773,115 @@ async def auto_filter(client, msg, spoll=False):
 
     pre = 'filep' if settings['file_secure'] else 'file'
 
-    if HYPER_MODE:
-        cap_lines = []
+    quality_regex = re.compile(r'\b(2160p|1080p|720p|480p|360p|4K|HD)\b', re.I)
+    language_regex = re.compile(
+        r'\b(Malayalam|Tamil|Hindi|English|Telugu|Kannada|Bengali|Malay|Punjabi|Arabic|Spanish|French)\b',
+        re.I,
+    )
+    series_regex = re.compile(r'\bS(?P<season>\d{1,2})E(?P<episode>\d{1,2})\b', re.I)
+    seasonx_regex = re.compile(r'\b(?P<season>\d{1,2})x(?P<episode>\d{1,2})\b', re.I)
+
+    grouped_series = {}
+    grouped_movies = {}
+    for file in files:
+        file_name = file.file_name
+        series_match = series_regex.search(file_name) or seasonx_regex.search(file_name)
+        if series_match:
+            season = f"S{int(series_match.group('season')):02d}"
+            episode = f"E{int(series_match.group('episode')):02d}"
+            grouped_series.setdefault(season, {}).setdefault(episode, []).append(file)
+            continue
+
+        quality_match = quality_regex.search(file_name)
+        quality = quality_match.group(1).upper() if quality_match else "OTHER"
+        language_match = language_regex.search(file_name)
+        language = language_match.group(1).title() if language_match else "Other"
+        grouped_movies.setdefault(quality, {}).setdefault(language, []).append(file)
+
+    cap_lines = []
+    if grouped_series:
+        cap_lines.append(f"📺 *Series results for:* `{search}`")
+        for season, episodes in grouped_series.items():
+            cap_lines.append(f"\n*{season}*")
+            for episode, episode_files in episodes.items():
+                cap_lines.append(f"  *{episode}*")
+                for file in episode_files:
+                    file_link = f"https://t.me/{temp.U_NAME}?start={pre}_{file.file_id}"
+                    cap_lines.append(
+                        f"    • [{file.file_name}]({file_link}) — `{get_size(file.file_size)}`"
+                    )
+    if grouped_movies:
+        cap_lines.append(f"\n🎬 *Movie results for:* `{search}`")
+        for quality, languages in grouped_movies.items():
+            cap_lines.append(f"\n*{quality}*")
+            for language, language_files in languages.items():
+                cap_lines.append(f"  _{language}_")
+                for file in language_files:
+                    file_link = f"https://t.me/{temp.U_NAME}?start={pre}_{file.file_id}"
+                    cap_lines.append(
+                        f"    • [{file.file_name}]({file_link}) — `{get_size(file.file_size)}`"
+                    )
+    if not cap_lines:
         for file in files:
             file_link = f"https://t.me/{temp.U_NAME}?start={pre}_{file.file_id}"
             cap_lines.append(f"📁 {get_size(file.file_size)} - [{file.file_name}]({file_link})")
-        cap_text = "\n".join(cap_lines)
 
-        btn = []
-        if offset != "":
-            key = f"{message.chat.id}-{message.id}"
-            BUTTONS[key] = search
-            req = message.from_user.id if message.from_user else 0
-            btn.append([
-                InlineKeyboardButton(text=f"📃 1/{math.ceil(int(total_results) / 10)}", callback_data="pages"),
-                InlineKeyboardButton(text="NEXT ▶️", callback_data=f"next_{req}_{key}_{offset}")
-            ])
-        else:
-            btn.append([InlineKeyboardButton(text="📃 1/1", callback_data="pages")])
-    else:
+    cap_text = "\n".join(cap_lines)
+
+    btn = []
+    for file in files:
         if settings["button"]:
-            btn = [
-                [
-                    InlineKeyboardButton(
-                        text=f"📂[{get_size(file.file_size)}]--{file.file_name}", callback_data=f'{pre}#{file.file_id}'
-                    ),
-                ]
-                for file in files
-            ]
-        else:
-            btn = [
-                [
-                    InlineKeyboardButton(
-                        text=f"{file.file_name}",
-                        callback_data=f'{pre}#{file.file_id}',
-                    ),
-                    InlineKeyboardButton(
-                        text=f"{get_size(file.file_size)}",
-                        callback_data=f'{pre}#{file.file_id}',
-                    ),
-                ]
-                for file in files
-            ]
-        if offset != "":
-            key = f"{message.chat.id}-{message.id}"
-            BUTTONS[key] = search
-            req = message.from_user.id if message.from_user else 0
             btn.append([
-                InlineKeyboardButton(text=f"📃 1/{math.ceil(int(total_results) / 10)}", callback_data="pages"),
-                InlineKeyboardButton(text="NEXT ▶️", callback_data=f"next_{req}_{key}_{offset}")
+                InlineKeyboardButton(
+                    text=f"📂[{get_size(file.file_size)}]--{file.file_name}", callback_data=f'{pre}#{file.file_id}'
+                ),
             ])
         else:
-            btn.append([InlineKeyboardButton(text="📃 1/1", callback_data="pages")])
+            btn.append([
+                InlineKeyboardButton(
+                    text=f"{file.file_name}",
+                    callback_data=f'{pre}#{file.file_id}',
+                ),
+                InlineKeyboardButton(
+                    text=f"{get_size(file.file_size)}",
+                    callback_data=f'{pre}#{file.file_id}',
+                ),
+            ])
+
+        encoded_id = encode_file_id(file.file_id)
+        stream_base = build_stream_url_from_env(file.file_id)
+        if stream_base:
+            domain = stream_base.rsplit("/stream/", 1)[0]
+            mx_url = f"{domain}/play/mx/{encoded_id}"
+            vlc_url = f"{domain}/play/vlc/{encoded_id}"
+        else:
+            mx_url = f"https://your-streaming-server.com/play/mx/{encoded_id}"
+            vlc_url = f"https://your-streaming-server.com/play/vlc/{encoded_id}"
+
+        btn.append([
+            InlineKeyboardButton(
+                text="▶️ MX Player",
+                url=mx_url,
+            ),
+            InlineKeyboardButton(
+                text="▶️ VLC Player",
+                url=vlc_url,
+            ),
+        ])
+
+    if offset != "":
+        key = f"{message.chat.id}-{message.id}"
+        BUTTONS[key] = search
+        req = message.from_user.id if message.from_user else 0
+        btn.append([
+            InlineKeyboardButton(text=f"📃 1/{math.ceil(int(total_results) / 10)}", callback_data="pages"),
+            InlineKeyboardButton(text="NEXT ▶️", callback_data=f"next_{req}_{key}_{offset}")
+        ])
+    else:
+        btn.append([InlineKeyboardButton(text="📃 1/1", callback_data="pages")])
+
+    if HYPER_MODE:
+        pass
 
     imdb = await get_poster(search, file=(files[0]).file_name) if settings["imdb"] else None
     TEMPLATE = settings['template']
